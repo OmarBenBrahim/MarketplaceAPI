@@ -3,6 +3,7 @@ using AutoMapper.QueryableExtensions;
 using MarketplaceAPI.Data;
 using MarketplaceAPI.DTOs;
 using MarketplaceAPI.Entity;
+using MarketplaceAPI.Extentions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,10 @@ namespace MarketplaceAPI.Controllers
         {
             if (createProductDto == null) return BadRequest();
 
+            var userName = User.GetUserame();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+
+
             var categorie = GetorCreateCategorie(createProductDto.Categorie);
 
             var product = new Product()
@@ -36,6 +41,7 @@ namespace MarketplaceAPI.Controllers
                 Price = createProductDto.Price,
                 Created = DateTime.Now,
                 Categorie = categorie,
+                User = user,
             };
 
             _context.Products.Add(product);

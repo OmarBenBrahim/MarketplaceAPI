@@ -11,5 +11,7 @@ public class Product
     public List<Photo> Photos { get; set; } = new();
     public int CategorieId { get; set; }
     public Categorie Categorie { get; set; }
+    public string UserId { get; set; }
+    public User User { get; set; }
 
 }

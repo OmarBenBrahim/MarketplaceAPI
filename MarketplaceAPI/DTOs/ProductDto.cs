@@ -10,6 +10,7 @@ namespace MarketplaceAPI.DTOs
         public string Description { get; set; }
         public string CategorieName { get; set; }
         public List<PhotoDto> Photos { get; set; }
+        public string UserUserName{ get; set; }
 
     }
 }
