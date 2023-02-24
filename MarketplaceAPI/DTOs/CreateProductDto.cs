@@ -6,5 +6,6 @@
         public float Price { get; set; }
         public string Description { get; set; }
         public string Categorie { get; set; }
+
     }
 }

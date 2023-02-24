@@ -1,16 +1,19 @@
 using MarketplaceAPI.Data;
 using MarketplaceAPI.Entity;
 using MarketplaceAPI.Extentions;
+using MarketplaceAPI.Helpers;
 using MarketplaceAPI.Interfaces;
 using MarketplaceAPI.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 //service crete token
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IPhotoService, PhotoService>();
 //mapper
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
@@ -22,6 +25,10 @@ builder.Services.AddIdentityServices(builder.Configuration);
 
 builder.Services.AddDbContext<DataContext>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("MarketplaceApiConnectString")));
+
+//Cloudinary
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySetting"));
+
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

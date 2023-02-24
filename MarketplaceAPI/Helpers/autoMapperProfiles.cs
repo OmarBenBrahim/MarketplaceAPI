@@ -11,6 +11,7 @@ namespace MarketplaceAPI.Helpers
             CreateMap<Photo, PhotoDto>();
             CreateMap<Product, ProductDto>();
             CreateMap<RegisterDto, User>();
+            CreateMap<User, ProductUserDto>();
         }
     }
 }

@@ -4,6 +4,8 @@ using MarketplaceAPI.Data;
 using MarketplaceAPI.DTOs;
 using MarketplaceAPI.Entity;
 using MarketplaceAPI.Extentions;
+using MarketplaceAPI.Interfaces;
+using MarketplaceAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,22 +17,27 @@ namespace MarketplaceAPI.Controllers
     {
         private readonly DataContext _context;
         private readonly IMapper mapper;
+        private readonly IPhotoService photoService;
 
-        public ProductController(DataContext context, IMapper mapper)
+        public ProductController(DataContext context, IMapper mapper, IPhotoService photoService)
         {
             _context = context;
             this.mapper = mapper;
+            this.photoService = photoService;
         }
 
 
         [HttpPost]
-        public async Task<ActionResult> PostProduct(CreateProductDto createProductDto)
+        public async Task<ActionResult<int>> PostProduct( CreateProductDto createProductDto )
         {
             if (createProductDto == null) return BadRequest();
 
             var userName = User.GetUserame();
+            if(userName == null) return NotFound("user name not found");
+
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
 
+            if(user == null) return NotFound("user not Found");
 
             var categorie = GetorCreateCategorie(createProductDto.Categorie);
 
@@ -43,10 +50,45 @@ namespace MarketplaceAPI.Controllers
                 Categorie = categorie,
                 User = user,
             };
-
+            
             _context.Products.Add(product);
 
-            if (await _context.SaveChangesAsync() > 0) return Ok("Product saved");
+            if (await _context.SaveChangesAsync() > 0) return Ok(product.Id);
+
+            return BadRequest();
+        }
+
+
+        [HttpPost("AddPhoto/{productId}")]
+        public async Task<ActionResult> AddProductPhoto(IFormFile file,int productId)
+        {
+            if (productId == null) return BadRequest();
+
+            var product = await _context.Products.FirstOrDefaultAsync(u => u.Id == productId);
+
+            if (product == null) return NotFound("product not Found");
+
+            var userName = User.GetUserame();
+
+            if (userName == null) return NotFound("user name not found");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+
+            if (user == null) return NotFound("user not Found");
+
+            var result = await photoService.AddPhotoAsync(file);
+
+            if (result.Error != null) return BadRequest(result.Error.Message);
+
+            var photo = new Photo()
+            {
+                Url = result.SecureUrl.AbsoluteUri,
+                PublicId = result.PublicId,
+            };
+
+            product.Photos.Add(photo);
+
+            if (await _context.SaveChangesAsync() > 0) return Ok("photo saved");
 
             return BadRequest();
         }
@@ -55,15 +97,59 @@ namespace MarketplaceAPI.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
         {
+            var userName = User.GetUserame();
+            if (userName == null) return NotFound("user name not found");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+
+            if (user == null) return NotFound("user not Found");
+
             return await _context.Products
                 .Include(x => x.Categorie)
                 .Include(x => x.Photos)
+                .Where(x => x.User != user)
+                .ProjectTo<ProductDto>(mapper.ConfigurationProvider)
+                .ToListAsync();
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<ProductDto>> GetProducts(int id)
+        {
+            var userName = User.GetUserame();
+            if (userName == null) return NotFound("user name not found");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+
+            if (user == null) return NotFound("user not Found");
+
+            return await _context.Products
+                .Include(x => x.Categorie)
+                .Include(x => x.Photos)
+                .Include(x => x.User)
+                .ProjectTo<ProductDto>(mapper.ConfigurationProvider)
+                .FirstOrDefaultAsync(x => x.Id == id);
+        }
+
+        [HttpGet("myproducts")]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetmyProducts()
+        {
+            var userName = User.GetUserame();
+            if (userName == null) return NotFound("user name not found");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+
+            if (user == null) return NotFound("user not Found");
+
+            return await _context.Products
+                .Include(x => x.Categorie)
+                .Include(x => x.Photos)
+                .Where(x=> x.User == user)
                 .ProjectTo<ProductDto>(mapper.ConfigurationProvider)
                 .ToListAsync();
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> UpdateProduct(int id, [FromQuery] CreateProductDto productDto)
+        public async Task<ActionResult> UpdateProduct(int id, CreateProductDto productDto)
         {
             var product = _context.Products.SingleOrDefault(x => x.Id == id);
             if (product == null) return NotFound();
