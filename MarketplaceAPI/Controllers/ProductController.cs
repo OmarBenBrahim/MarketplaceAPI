@@ -4,6 +4,7 @@ using MarketplaceAPI.Data;
 using MarketplaceAPI.DTOs;
 using MarketplaceAPI.Entity;
 using MarketplaceAPI.Extentions;
+using MarketplaceAPI.Helpers;
 using MarketplaceAPI.Interfaces;
 using MarketplaceAPI.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -95,20 +96,25 @@ namespace MarketplaceAPI.Controllers
 
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts([FromQuery] ProductParams productParams)
         {
-            var userName = User.GetUserame();
-            if (userName == null) return NotFound("user name not found");
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
-
-            if (user == null) return NotFound("user not Found");
-
-            return await _context.Products
+            var query = _context.Products
                 .Include(x => x.Categorie)
                 .Include(x => x.Photos)
-                .Where(x => x.User != user)
-                .ProjectTo<ProductDto>(mapper.ConfigurationProvider)
+                .AsQueryable();
+
+
+            if (productParams.MinPrice.HasValue)
+                query = query.Where(x => x.Price > productParams.MinPrice);
+            if (productParams.MaxPrice.HasValue)
+                query = query.Where(x => x.Price < productParams.MaxPrice);
+            if (productParams.categorie != null)
+                query = query.Where(x => x.Categorie.Name == productParams.categorie);
+            if(productParams.state != null)
+                query = query.Where(x => x.User.State == productParams.state);
+
+
+            return await query.ProjectTo<ProductDto>(mapper.ConfigurationProvider)
                 .ToListAsync();
         }
 
