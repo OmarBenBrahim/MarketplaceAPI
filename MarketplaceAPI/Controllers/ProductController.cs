@@ -98,24 +98,53 @@ namespace MarketplaceAPI.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts([FromQuery] ProductParams productParams)
         {
+
             var query = _context.Products
                 .Include(x => x.Categorie)
                 .Include(x => x.Photos)
+                .Include(x => x.User)
                 .AsQueryable();
 
-
+            //UserName
+            if (productParams.UserName != null)
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == productParams.UserName);
+                if (user == null) return NotFound("user not Found");
+                query = query.Where(x => x.User == user);
+            }
+            //MinPrice
             if (productParams.MinPrice.HasValue)
                 query = query.Where(x => x.Price > productParams.MinPrice);
+            //MaxPrice
             if (productParams.MaxPrice.HasValue)
                 query = query.Where(x => x.Price < productParams.MaxPrice);
-            if (productParams.categorie != null)
-                query = query.Where(x => x.Categorie.Name == productParams.categorie);
-            if(productParams.state != null)
-                query = query.Where(x => x.User.State == productParams.state);
+            //Categirie
+            if (productParams.Categorie != null)
+                query = query.Where(x => x.Categorie.Name == productParams.Categorie);
+            //State
+            if(productParams.State != null)
+                query = query.Where(x => x.User.State == productParams.State);
 
+            var count = query.Count();
+            //var items = query.Skip( (productParams.pageNumber -1 ) * productParams.pageSize )
+                //.Take(productParams.pageSize);
 
-            return await query.ProjectTo<ProductDto>(mapper.ConfigurationProvider)
-                .ToListAsync();
+            //var products = await items.ProjectTo<ProductDto>(mapper.ConfigurationProvider).ToListAsync();
+
+            var products = await PageList<ProductDto>.CreateAsync(
+                query.ProjectTo<ProductDto>(mapper.ConfigurationProvider),
+                productParams.pageNumber,
+                productParams.pageSize
+                );
+
+            Response.AddPaginationHeader(
+                new PaginationHeader(
+                    products.CurrentPage,
+                    products.PageSize,
+                    products.TotalCount,
+                    products.TotalPages)
+                );
+            return Ok( products );
         }
 
         [HttpGet("{id}")]
