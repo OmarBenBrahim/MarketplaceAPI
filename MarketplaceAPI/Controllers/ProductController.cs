@@ -7,6 +7,7 @@ using MarketplaceAPI.Extentions;
 using MarketplaceAPI.Helpers;
 using MarketplaceAPI.Interfaces;
 using MarketplaceAPI.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,7 +28,7 @@ namespace MarketplaceAPI.Controllers
             this.photoService = photoService;
         }
 
-
+        [Authorize]
         [HttpPost]
         public async Task<ActionResult<int>> PostProduct( CreateProductDto createProductDto )
         {
@@ -55,41 +56,6 @@ namespace MarketplaceAPI.Controllers
             _context.Products.Add(product);
 
             if (await _context.SaveChangesAsync() > 0) return Ok(product.Id);
-
-            return BadRequest();
-        }
-
-
-        [HttpPost("AddPhoto/{productId}")]
-        public async Task<ActionResult> AddProductPhoto(IFormFile file,int productId)
-        {
-            if (productId == null) return BadRequest();
-
-            var product = await _context.Products.FirstOrDefaultAsync(u => u.Id == productId);
-
-            if (product == null) return NotFound("product not Found");
-
-            var userName = User.GetUserame();
-
-            if (userName == null) return NotFound("user name not found");
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
-
-            if (user == null) return NotFound("user not Found");
-
-            var result = await photoService.AddPhotoAsync(file);
-
-            if (result.Error != null) return BadRequest(result.Error.Message);
-
-            var photo = new Photo()
-            {
-                Url = result.SecureUrl.AbsoluteUri,
-                PublicId = result.PublicId,
-            };
-
-            product.Photos.Add(photo);
-
-            if (await _context.SaveChangesAsync() > 0) return Ok("photo saved");
 
             return BadRequest();
         }
@@ -224,6 +190,73 @@ namespace MarketplaceAPI.Controllers
            _context.Categories.Add(NewCategorie);
 
             return NewCategorie;
+        }
+
+        [HttpPost("AddPhoto/{productId}")]
+        public async Task<ActionResult<PhotoDto>> AddProductPhoto(IFormFile file, int productId)
+        {
+            if (productId == null) return BadRequest();
+
+            var product = await _context.Products.FirstOrDefaultAsync(u => u.Id == productId);
+
+            if (product == null) return NotFound("product not Found");
+
+            var userName = User.GetUserame();
+
+            if (userName == null) return NotFound("user name not found");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+
+            if (user == null) return NotFound("user not Found");
+
+            var result = await photoService.AddPhotoAsync(file);
+
+            if (result.Error != null) return BadRequest(result.Error.Message);
+
+            var photo = new Photo()
+            {
+                Url = result.SecureUrl.AbsoluteUri,
+                PublicId = result.PublicId,
+            };
+
+            product.Photos.Add(photo);
+
+            if (await _context.SaveChangesAsync() > 0) {
+                var count = product.Photos.Count()-1;
+                var lastPhoto = product.Photos[count];
+                return new PhotoDto
+                {
+                    Id = lastPhoto.Id,
+                    PublicId = lastPhoto.PublicId,
+                    Url = lastPhoto.Url,
+
+                };
+                        
+            }
+
+            return BadRequest();
+        }
+
+        [HttpDelete("delete-photo/{photoId}")]
+        public async Task<ActionResult> DeletePhoto(int photoId)
+        {
+            
+            var photo = _context.Photos.FirstOrDefault(x => x.Id == photoId);
+
+            if (photo == null) return NotFound();
+
+            if (photo.PublicId != null)
+            {
+                var result = await photoService.DeletePhotoAsync(photo.PublicId);
+                if (result.Error != null) return BadRequest(result.Error.Message);
+            }
+
+            _context.Photos.Remove(photo);
+
+            if (await _context.SaveChangesAsync() > 0) return NoContent();
+
+            return BadRequest("Problem Deleting Photo");
+
         }
     }
 }
