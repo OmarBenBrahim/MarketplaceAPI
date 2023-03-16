@@ -116,13 +116,6 @@ namespace MarketplaceAPI.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<ProductDto>> GetProducts(int id)
         {
-            var userName = User.GetUserame();
-            if (userName == null) return NotFound("user name not found");
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
-
-            if (user == null) return NotFound("user not Found");
-
             return await _context.Products
                 .Include(x => x.Categorie)
                 .Include(x => x.Photos)
