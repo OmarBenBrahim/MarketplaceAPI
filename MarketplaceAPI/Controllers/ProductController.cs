@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarketplaceAPI.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("[controller]")]
     public class ProductController : Controller
@@ -20,7 +21,7 @@ namespace MarketplaceAPI.Controllers
         private readonly DataContext _context;
         private readonly IMapper mapper;
         private readonly IPhotoService photoService;
-
+        
         public ProductController(DataContext context, IMapper mapper, IPhotoService photoService)
         {
             _context = context;
@@ -28,7 +29,7 @@ namespace MarketplaceAPI.Controllers
             this.photoService = photoService;
         }
 
-        [Authorize]
+        
         [HttpPost]
         public async Task<ActionResult<int>> PostProduct( CreateProductDto createProductDto )
         {
@@ -60,7 +61,7 @@ namespace MarketplaceAPI.Controllers
             return BadRequest();
         }
 
-
+        [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts([FromQuery] ProductParams productParams)
         {
@@ -71,38 +72,50 @@ namespace MarketplaceAPI.Controllers
                 .Include(x => x.User)
                 .AsQueryable();
 
-            //UserName
+            //Get My Products
             if (productParams.UserName != null)
             {
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == productParams.UserName);
                 if (user == null) return NotFound("user not Found");
                 query = query.Where(x => x.User == user);
             }
+            
+            //get products of defferent user
+            var userName = User.GetUserame();
+            if (userName != null && productParams.UserName == null)
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+                if (user == null) return NotFound("user not Found");
+                query = query.Where(x => x.User != user);
+            }
+            
+
             //MinPrice
-            if (productParams.MinPrice.HasValue)
-                query = query.Where(x => x.Price > productParams.MinPrice);
+            if (productParams.MinPrice.HasValue) { 
+                query = query.Where(x => x.Price >= productParams.MinPrice);
+            }
             //MaxPrice
-            if (productParams.MaxPrice.HasValue)
-                query = query.Where(x => x.Price < productParams.MaxPrice);
+            if (productParams.MaxPrice.HasValue) { 
+                query = query.Where(x => x.Price <= productParams.MaxPrice);
+            }
             //Categirie
-            if (productParams.Categorie != null)
+            if (productParams.Categorie != null) { 
                 query = query.Where(x => x.Categorie.Name == productParams.Categorie);
+            }
             //State
-            if(productParams.State != null)
+            if (productParams.State != null) { 
                 query = query.Where(x => x.User.State == productParams.State);
+            }
 
+            //Pagination
             var count = query.Count();
-            //var items = query.Skip( (productParams.pageNumber -1 ) * productParams.pageSize )
-                //.Take(productParams.pageSize);
-
-            //var products = await items.ProjectTo<ProductDto>(mapper.ConfigurationProvider).ToListAsync();
-
             var products = await PageList<ProductDto>.CreateAsync(
                 query.ProjectTo<ProductDto>(mapper.ConfigurationProvider),
                 productParams.pageNumber,
                 productParams.pageSize
                 );
 
+            //Header
             Response.AddPaginationHeader(
                 new PaginationHeader(
                     products.CurrentPage,
@@ -113,6 +126,7 @@ namespace MarketplaceAPI.Controllers
             return Ok( products );
         }
 
+        [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<ActionResult<ProductDto>> GetProducts(int id)
         {
@@ -122,24 +136,6 @@ namespace MarketplaceAPI.Controllers
                 .Include(x => x.User)
                 .ProjectTo<ProductDto>(mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync(x => x.Id == id);
-        }
-
-        [HttpGet("myproducts")]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetmyProducts()
-        {
-            var userName = User.GetUserame();
-            if (userName == null) return NotFound("user name not found");
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
-
-            if (user == null) return NotFound("user not Found");
-
-            return await _context.Products
-                .Include(x => x.Categorie)
-                .Include(x => x.Photos)
-                .Where(x=> x.User == user)
-                .ProjectTo<ProductDto>(mapper.ConfigurationProvider)
-                .ToListAsync();
         }
 
         [HttpPut("{id}")]
